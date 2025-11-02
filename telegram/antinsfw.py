@@ -76,10 +76,12 @@ async def getimage(client, event):
 
     try:
         if event.photo:
-            buf = io.BytesIO()
-            await client.download_media(event.photo, file_name=buf)
-            buf.seek(0)
-            img = Image.open(buf).convert("RGB")
+            file_obj = await client.download_media(event.photo, in_memory=True)
+            try:
+                file_obj.seek(0)
+            except Exception:
+                pass
+            img = Image.open(file_obj).convert("RGB")
             nsfw = await classify_image_async(img)
             if nsfw:
                 await add_nsfw(file_id)
@@ -104,10 +106,12 @@ async def getimage(client, event):
                 return
             else:
                 # Static sticker (likely .webp)
-                buf = io.BytesIO()
-                await client.download_media(event.sticker, file_name=buf)
-                buf.seek(0)
-                img = Image.open(buf).convert("RGB")
+                file_obj = await client.download_media(event.sticker, in_memory=True)
+                try:
+                    file_obj.seek(0)
+                except Exception:
+                    pass
+                img = Image.open(file_obj).convert("RGB")
                 nsfw = await classify_image_async(img)
                 if nsfw:
                     await add_nsfw(file_id)
