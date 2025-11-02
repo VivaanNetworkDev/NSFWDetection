@@ -1,11 +1,12 @@
+import os
 from pyrogram import Client
-from uvloop import install
 
-api_id = '681XXXXXXXXX' # Your api_id from my.telegram.org
-api_hash = '453aXXXXXXXX' # Your api_hash from my.telegram.org
-bot_token = '681:AAv1OJQhamQXXXXXXXX' # Your bot token from @BotFather
-db_url = 'mongodb://localhost:27017' # Your MongoDB URL from mongodb.com
+# Read configuration from environment variables (Heroku/app.json compatible)
+# These must be set in your environment for the bot to start.
+api_id = int(os.environ.get("API_ID", "0"))
+api_hash = os.environ.get("API_HASH", "")
+bot_token = os.environ.get("BOT_TOKEN", "")
+db_url = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
 
-install()
-client = Client("antinsfw", api_id, api_hash, bot_token=bot_token)
+client = Client("antinsfw", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
