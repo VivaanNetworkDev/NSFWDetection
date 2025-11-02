@@ -8,7 +8,21 @@ from PIL import Image
 import torch
 from telegram import client
 from pyrogram import filters
-from telegram.db import is_nsfw, add_chat, add_user, add_nsfw, remove_nsfw
+from telegram.db import (
+    is_nsfw,
+    add_chat,
+    add_user,
+    add_nsfw,
+    remove_nsfw,
+    is_nsfw_unique,
+    add_nsfw_unique,
+    remove_nsfw_unique,
+)
+from telegram.cache import (
+    is_nsfw_cached,
+    mark_nsfw_cached,
+    mark_safe_cached,
+)
 from transformers import AutoModelForImageClassification, ViTImageProcessor
 from pyrogram.enums import ChatType
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -55,22 +69,27 @@ def sample_video_frames(path: str, sample_seconds=(0, 10, 20), max_frames=3):
 
 @client.on_message(filters.photo | filters.sticker | filters.animation | filters.video)
 async def getimage(client, event):
-    # Determine file_id
+    # Determine file_id and unique_id
     file_id = None
+    unique_id = None
     if event.photo:
         file_id = event.photo.file_id
+        unique_id = event.photo.file_unique_id
     elif event.sticker:
         file_id = event.sticker.file_id
+        unique_id = event.sticker.file_unique_id
     elif event.animation:
         file_id = event.animation.file_id
+        unique_id = event.animation.file_unique_id
     elif event.video:
         file_id = event.video.file_id
+        unique_id = event.video.file_unique_id
 
-    if not file_id:
+    if not file_id and not unique_id:
         return
 
-    # Skip if already marked as NSFW
-    if await is_nsfw(file_id):
+    # Fast path: already known NSFW by unique_id or file_id
+    if (unique_id and is_nsfw_cached(unique_id)) or (unique_id and await is_nsfw_unique(unique_id)) or (file_id and await is_nsfw(file_id)):
         await send_msg(event)
         return
 
@@ -84,10 +103,18 @@ async def getimage(client, event):
             img = Image.open(file_obj).convert("RGB")
             nsfw = await classify_image_async(img)
             if nsfw:
-                await add_nsfw(file_id)
+                if file_id:
+                    await add_nsfw(file_id)
+                if unique_id:
+                    mark_nsfw_cached(unique_id)
+                    await add_nsfw_unique(unique_id)
                 await send_msg(event)
             else:
-                await remove_nsfw(file_id)
+                if file_id:
+                    await remove_nsfw(file_id)
+                if unique_id:
+                    mark_safe_cached(unique_id)
+                    await remove_nsfw_unique(unique_id)
             return
 
         elif event.sticker:
@@ -97,7 +124,7 @@ async def getimage(client, event):
                     tmp_path = tmp.name
                 try:
                     await client.download_media(event.sticker, file_name=tmp_path)
-                    await videoShit(event, tmp_path, file_id)
+                    await videoShit(event, tmp_path, file_id, unique_id)
                 finally:
                     try:
                         os.remove(tmp_path)
@@ -114,10 +141,18 @@ async def getimage(client, event):
                 img = Image.open(file_obj).convert("RGB")
                 nsfw = await classify_image_async(img)
                 if nsfw:
-                    await add_nsfw(file_id)
+                    if file_id:
+                        await add_nsfw(file_id)
+                    if unique_id:
+                        mark_nsfw_cached(unique_id)
+                        await add_nsfw_unique(unique_id)
                     await send_msg(event)
                 else:
-                    await remove_nsfw(file_id)
+                    if file_id:
+                        await remove_nsfw(file_id)
+                    if unique_id:
+                        mark_safe_cached(unique_id)
+                        await remove_nsfw_unique(unique_id)
                 return
 
         elif event.animation:
@@ -126,7 +161,7 @@ async def getimage(client, event):
                 tmp_path = tmp.name
             try:
                 await client.download_media(event.animation, file_name=tmp_path)
-                await videoShit(event, tmp_path, file_id)
+                await videoShit(event, tmp_path, file_id, unique_id)
             finally:
                 try:
                     os.remove(tmp_path)
@@ -139,7 +174,7 @@ async def getimage(client, event):
                 tmp_path = tmp.name
             try:
                 await client.download_media(event.video, file_name=tmp_path)
-                await videoShit(event, tmp_path, file_id)
+                await videoShit(event, tmp_path, file_id, unique_id)
             finally:
                 try:
                     os.remove(tmp_path)
@@ -174,9 +209,9 @@ async def send_msg(event):
     else:
         await event.reply("NSFW Image.")
 
-async def videoShit(event, video_path, file_id):
+async def videoShit(event, video_path, file_id, unique_id):
     # Prevent reprocessing
-    if await is_nsfw(file_id):
+    if (unique_id and is_nsfw_cached(unique_id)) or (unique_id and await is_nsfw_unique(unique_id)) or (file_id and await is_nsfw(file_id)):
         await send_msg(event)
         return
 
@@ -185,10 +220,18 @@ async def videoShit(event, video_path, file_id):
         for img in frames:
             nsfw = await classify_image_async(img)
             if nsfw:
-                await add_nsfw(file_id)
+                if file_id:
+                    await add_nsfw(file_id)
+                if unique_id:
+                    mark_nsfw_cached(unique_id)
+                    await add_nsfw_unique(unique_id)
                 await send_msg(event)
                 return
         # None of the sampled frames considered NSFW
-        await remove_nsfw(file_id)
+        if file_id:
+            await remove_nsfw(file_id)
+        if unique_id:
+            mark_safe_cached(unique_id)
+            await remove_nsfw_unique(unique_id)
     except Exception as e:
         logging.error(f"Failed to analyze video: {e}")
