@@ -1,13 +1,26 @@
+import os
 import motor.motor_asyncio
 from . import db_url
 
-client = motor.motor_asyncio.AsyncIOMotorClient(db_url)
-db = client['nsfw']
+# Keep DB operations snappy if Mongo isn't available (avoid long hangs)
+_timeout_ms = int(os.environ.get("DB_TIMEOUT_MS", "1500"))
 
-userdb = db.users
-chatdb = db.chats
-files = db.files
-files_unique = db.files_unique  # Separate collection keyed by Telegram file_unique_id
+try:
+    client = motor.motor_asyncio.AsyncIOMotorClient(
+        db_url,
+        serverSelectionTimeoutMS=_timeout_ms,
+        connectTimeoutMS=_timeout_ms,
+        socketTimeoutMS=_timeout_ms,
+    ) if db_url else None
+except Exception:
+    client = None
+
+db = client['nsfw'] if client else None
+
+userdb = db.users if db else None
+chatdb = db.chats if db else None
+files = db.files if db else None
+files_unique = db.files_unique if db else None  # Separate collection keyed by Telegram file_unique_id
 
 async def add_user(user_id: int, username: str):
     try:

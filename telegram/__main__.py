@@ -8,6 +8,7 @@ from . import client
 importlib.import_module(".antinsfw", __package__)
 importlib.import_module(".stats", __package__)
 importlib.import_module(".db", __package__)
+importlib.import_module(".ping", __package__)
 
 async def gae():
     await client.start()
