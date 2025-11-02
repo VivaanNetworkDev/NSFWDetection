@@ -5,9 +5,9 @@ import asyncio
 import tempfile
 from PIL import Image
 import torch
-from telegram import client
+from . import client
 from pyrogram import filters
-from telegram.db import (
+from .db import (
     is_nsfw,
     add_chat,
     add_user,
@@ -17,7 +17,7 @@ from telegram.db import (
     add_nsfw_unique,
     remove_nsfw_unique,
 )
-from telegram.cache import (
+from .cache import (
     is_nsfw_cached,
     mark_nsfw_cached,
     mark_safe_cached,

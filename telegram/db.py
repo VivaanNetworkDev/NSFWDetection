@@ -1,5 +1,5 @@
 import motor.motor_asyncio
-from telegram import db_url
+from . import db_url
 
 client = motor.motor_asyncio.AsyncIOMotorClient(db_url)
 db = client['nsfw']
