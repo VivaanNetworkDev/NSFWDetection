@@ -3,7 +3,6 @@ import os
 import logging
 import asyncio
 import tempfile
-import io
 from PIL import Image
 import torch
 from telegram import client
@@ -23,13 +22,14 @@ from telegram.cache import (
     mark_nsfw_cached,
     mark_safe_cached,
 )
-from transformers import AutoModelForImageClassification, ViTImageProcessor
+from transformers import AutoModelForImageClassification, AutoImageProcessor
 from pyrogram.enums import ChatType
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 # Load model and processor once at import time
 model = AutoModelForImageClassification.from_pretrained("Falconsai/nsfw_image_detection")
-processor = ViTImageProcessor.from_pretrained("Falconsai/nsfw_image_detection")
+processor = AutoImageProcessor.from_pretrained("Falconsai/nsfw_image_detection")
+model.eval()
 
 def predict_is_nsfw(image: Image.Image) -> bool:
     """Synchronous prediction; returns True if NSFW."""
@@ -57,7 +57,7 @@ def sample_video_frames(path: str, sample_seconds=(0, 10, 20), max_frames=3):
                 break
             cap.set(cv2.CAP_PROP_POS_MSEC, s * 1000)
             success, frame = cap.read()
-            if not success:
+            if not success or frame is None:
                 continue
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             frames.append(img)
@@ -124,7 +124,7 @@ async def getimage(client, event):
                     tmp_path = tmp.name
                 try:
                     await client.download_media(event.sticker, file_name=tmp_path)
-                    await videoShit(event, tmp_path, file_id, unique_id)
+                    await classify_video(event, tmp_path, file_id, unique_id)
                 finally:
                     try:
                         os.remove(tmp_path)
@@ -161,7 +161,7 @@ async def getimage(client, event):
                 tmp_path = tmp.name
             try:
                 await client.download_media(event.animation, file_name=tmp_path)
-                await videoShit(event, tmp_path, file_id, unique_id)
+                await classify_video(event, tmp_path, file_id, unique_id)
             finally:
                 try:
                     os.remove(tmp_path)
@@ -174,7 +174,7 @@ async def getimage(client, event):
                 tmp_path = tmp.name
             try:
                 await client.download_media(event.video, file_name=tmp_path)
-                await videoShit(event, tmp_path, file_id, unique_id)
+                await classify_video(event, tmp_path, file_id, unique_id)
             finally:
                 try:
                     os.remove(tmp_path)
@@ -196,7 +196,7 @@ async def start(_, event):
         await add_user(event.from_user.id, "None")
 
 async def send_msg(event):
-    if event.chat.type == ChatType.SUPERGROUP:
+    if event.chat.type in (ChatType.SUPERGROUP, ChatType.GROUP):
         try:
             await event.delete()
         except Exception:
@@ -209,7 +209,7 @@ async def send_msg(event):
     else:
         await event.reply("NSFW Image.")
 
-async def videoShit(event, video_path, file_id, unique_id):
+async def classify_video(event, video_path, file_id, unique_id):
     # Prevent reprocessing
     if (unique_id and is_nsfw_cached(unique_id)) or (unique_id and await is_nsfw_unique(unique_id)) or (file_id and await is_nsfw(file_id)):
         await send_msg(event)
