@@ -93,6 +93,7 @@ def sample_video_frames(path: str, sample_seconds=(0, 6, 12), max_frames=3):
 
 @client.on_message(filters.photo | filters.sticker | filters.animation | filters.video)
 async def getimage(client, event):
+    logging.info("Received media: chat_id=%s type=%s photo=%s sticker=%s animation=%s video=%s", event.chat.id, getattr(event.chat.type, "name", event.chat.type), bool(event.photo), bool(event.sticker), bool(event.animation), bool(event.video))
     # Determine file_id and unique_id
     file_id = None
     unique_id = None
@@ -139,6 +140,7 @@ async def getimage(client, event):
                 if unique_id:
                     mark_safe_cached(unique_id)
                     await remove_nsfw_unique(unique_id)
+                await reply_safe_if_private(event)
             return
 
         elif event.sticker:
@@ -182,6 +184,7 @@ async def getimage(client, event):
                 if unique_id:
                     mark_safe_cached(unique_id)
                     await remove_nsfw_unique(unique_id)
+                await reply_safe_if_private(event)
             return
 
         elif event.animation:
@@ -223,6 +226,13 @@ async def start(_, event):
         username = getattr(event.from_user, "username", None) or "None"
         await add_user(event.from_user.id, username)
 
+async def reply_safe_if_private(event):
+    if event.chat.type not in (ChatType.SUPERGROUP, ChatType.GROUP):
+        try:
+            await event.reply("Not NSFW.")
+        except Exception:
+            pass
+
 async def send_msg(event):
     if event.chat.type in (ChatType.SUPERGROUP, ChatType.GROUP):
         try:
@@ -261,5 +271,6 @@ async def classify_video(event, video_path, file_id, unique_id):
         if unique_id:
             mark_safe_cached(unique_id)
             await remove_nsfw_unique(unique_id)
+        await reply_safe_if_private(event)
     except Exception as e:
         logging.error(f"Failed to analyze video: {e}")
