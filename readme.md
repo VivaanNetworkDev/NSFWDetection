@@ -1,90 +1,99 @@
-# Enhanced Version: NSFW Detection Telegram Bot
+# NSFW Detection Telegram Bot
 
-Welcome to the NSFW Detection Telegram Bot, an advanced tool designed to identify Not Safe for Work (NSFW) content in images through cutting-edge machine learning algorithms. The bot is written in Python using pyrogram, torch, transformers, TensorFlow, OpenCV, Pillow, and MongoDB.
+AI-powered moderation bot for Telegram that detects NSFW content in images, stickers, GIFs and videos using the Falconsai/nsfw_image_detection model.
 
-## Acknowledgments
+Try it on Telegram: [@NsfwDetectorRobot](https://t.me/NsfwDetectorRobot)
 
-This project leverages the powerful `Falconsai/nsfw_image_detection` pre-trained model and dataset. We extend our gratitude to them for their contributions, enabling the functionality of this bot.
+## Features
 
-## Getting Started
+- Detects NSFW content in:
+  - Photos
+  - Static stickers (webp)
+  - Animated stickers (webm)
+  - GIFs (downloaded as mp4)
+  - Videos (samples frames for analysis)
+- Works in groups (delete permission required) and private chats
+- Fast re-detections via unique-id cache
+- Persistent storage using MongoDB (via Motor)
+- `/stats` command to view usage metrics
 
-<h2 align="center"> 
-   ⇝ Requirements ⇜
-</h2>
+## Tech stack
 
-<p align="center">
-    <a href="https://www.python.org/downloads/release/python-390/"> Python 3.9 </a> |
-    <a href="https://docs.pyrogram.org/intro/setup#api-keys"> Telegram API Key </a> |
-    <a href="https://t.me/botfather"> Telegram Bot Token </a> | 
-    <a href="https://graph.org/How-To-get-Mongodb-URI-04-06"> MongoDB URI </a>
-</p>
+- Python 3.11
+- Pyrogram 2.x, tgcrypto/cryptg
+- Transformers, Torch, OpenCV, Pillow
+- Motor (MongoDB), uvloop
 
-Follow these simple steps to unleash the power of the NSFW Detection Telegram Bot:
+## Requirements
 
-1. Begin by ensuring you have Git installed. If not, you can install it by running:
+- Telegram Bot Token from [@BotFather](https://t.me/BotFather)
+- API ID and API HASH from [my.telegram.org](https://my.telegram.org)
+- MongoDB URI (MongoDB Atlas free tier recommended)
 
-  ```bash
-   sudo apt-get update
-   sudo apt-get install git
-   ```
+Environment variables expected by the bot:
 
-   Then, clone the repository into your terminal:
+- `BOT_TOKEN` — bot token from BotFather
+- `API_ID` — numeric API ID
+- `API_HASH` — API hash
+- `MONGO_URI` — Mongo connection string (e.g. mongodb+srv://...)
 
-  ```bash
-   git clone https://github.com/VivaanNetworkDev/NSFWDetection
-   ```
-   
-2. Now navigate into the directory:
+## Quick start (local)
 
-   ```bash
-   cd NSFWDetection
-   ```
-
-3. Install the necessary dependencies. Execute the following command:
-
-    ```bash
-    pip3 install -U -r requirements.txt
-    ```
-
-4. Acquire a Telegram Bot API token by creating a new bot through [Telegram BotFather](https://core.telegram.org/bots#botfather).
-
-5. Personalize the `telegram/__init__.py` script by replacing the variables with your Telegram Bot API token.
-
-6. Launch the bot using the following command:
-
-    ```bash
-    python3 -m telegram
-    ```
-
-7. Integrate the bot into your Telegram group or chat, and send an image for analysis. The bot will promptly provide you with the results.
-
-## Dependencies
-
-Ensure you have the following dependencies installed to run the NSFW Detection Telegram Bot seamlessly:
-
-- Python 3.x
-- TensorFlow
-- Pillow
-- pyrogram 2.x
-- motor
-- OpenCV
-- torch
-- transformers
-
-## Script Testing (Unrelated to Telegram)
-
-Evaluate the script's performance by executing the command below in your terminal and supplying the image file path:
-
+1) Clone and install dependencies
 ```bash
-pip3 install -U -r requirements.txt
+git clone https://github.com/VivaanNetworkDev/NSFWDetection
+cd NSFWDetection
+python3 -m pip install -U -r requirements.txt
 ```
+
+2) Export environment variables
+```bash
+export BOT_TOKEN=your_bot_token
+export API_ID=your_api_id
+export API_HASH=your_api_hash
+export MONGO_URI="your_mongodb_uri"
+```
+
+3) Run the bot
+```bash
+python3 -m telegram
+```
+
+## Usage
+
+- Private chat: send any image/sticker/GIF/video and the bot will reply if it is NSFW.
+- Groups: make the bot an admin with delete message permission; it will delete NSFW posts automatically and log the chat.
+
+Available commands:
+- `/start` — introduction and support links
+- `/stats` — users, chats, and NSFW file count (from MongoDB)
+
+## One‑click deploy to Heroku
+
+This repository includes `Procfile`, `app.json`, and `runtime.txt` for Heroku.
+
+- Deploy using the button below and fill in the required env vars:
+
+[Deploy to Heroku](https://heroku.com/deploy?template=https://github.com/VivaanNetworkDev/NSFWDetection)
+
+Heroku runs the worker: `python3 -m telegram` and uses Python `3.11.10` (see `runtime.txt`).
+
+## CLI test (without Telegram)
+
+You can run a simple CLI to check local files:
 
 ```bash
 python3 main.py
 ```
 
-## Support the Project
+It will prompt for an image or video path and print `NSFW` or `Not NSFW`.
 
-If you find the NSFW Detection project useful, consider supporting the project through a donation. Your contributions help us maintain and improve the service.
+## Acknowledgments
 
-- This Project is Powered By VivaanNetwork https://t.me/VivaanNetwork
+- Model: [`Falconsai/nsfw_image_detection`](https://huggingface.co/Falconsai/nsfw_image_detection)
+
+## Support
+
+If you find this project useful, consider supporting continued development.
+
+Powered by VivaanNetwork — https://t.me/VivaanNetwork
