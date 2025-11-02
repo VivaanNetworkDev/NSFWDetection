@@ -26,24 +26,48 @@ from transformers import AutoModelForImageClassification, AutoImageProcessor
 from pyrogram.enums import ChatType
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-# Load model and processor once at import time
-model = AutoModelForImageClassification.from_pretrained("Falconsai/nsfw_image_detection")
-processor = AutoImageProcessor.from_pretrained("Falconsai/nsfw_image_detection")
-model.eval()
+# Lazy, thread-safe model loading to keep /start responsive on cold boot
+_model = None
+_processor = None
+_model_lock = asyncio.Lock()
 
-def predict_is_nsfw(image: Image.Image) -> bool:
-    """Synchronous prediction; returns True if NSFW."""
+async def get_model_and_processor():
+    global _model, _processor
+    if _model is not None and _processor is not None:
+        return _model, _processor
+    async with _model_lock:
+        if _model is None or _processor is None:
+            def _load():
+                m = AutoModelForImageClassification.from_pretrained("Falconsai/nsfw_image_detection")
+                p = AutoImageProcessor.from_pretrained("Falconsai/nsfw_image_detection")
+                m.eval()
+                return m, p
+            _model, _processor = await asyncio.to_thread(_load)
+    return _model, _processor
+
+def _predict_is_nsfw_sync(image: Image.Image) -> bool:
+    """Synchronous prediction; returns True if predicted label contains 'nsfw'."""
+    model, processor = _model, _processor
+    if model is None or processor is None:
+        # Should not happen when called via classify_image_async, but be safe
+        model, processor = AutoModelForImageClassification.from_pretrained("Falconsai/nsfw_image_detection"), AutoImageProcessor.from_pretrained("Falconsai/nsfw_image_detection")
+        model.eval()
     with torch.no_grad():
         inputs = processor(images=image, return_tensors="pt")
         outputs = model(**inputs)
         logits = outputs.logits
-    return bool(logits.argmax(-1).item())
+        idx = int(logits.argmax(-1).item())
+        label = str(getattr(model.config, "id2label", {}).get(idx, "")).lower()
+    # Fallback: if mapping missing, assume class 1 is nsfw as commonly used
+    return ("nsfw" in label) or (label == "" and idx == 1)
 
 async def classify_image_async(image: Image.Image) -> bool:
     """Run classification in a thread to avoid blocking the event loop."""
-    return await asyncio.to_thread(predict_is_nsfw, image)
+    # Ensure model is loaded (non-blocking to event loop)
+    await get_model_and_processor()
+    return await asyncio.to_thread(_predict_is_nsfw_sync, image)
 
-def sample_video_frames(path: str, sample_seconds=(0, 10, 20), max_frames=3):
+def sample_video_frames(path: str, sample_seconds=(0, 6, 12), max_frames=3):
     """Efficiently sample a few frames from a video at given seconds."""
     cap = cv2.VideoCapture(path)
     frames = []
@@ -118,8 +142,10 @@ async def getimage(client, event):
             return
 
         elif event.sticker:
-            if event.sticker.mime_type == "video/webm":
-                # Animated sticker (video/webm)
+            # Handle different sticker types
+            mime = event.sticker.mime_type or ""
+            if mime == "video/webm" or getattr(event.sticker, "is_video", False):
+                # Animated video sticker (webm)
                 with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
                     tmp_path = tmp.name
                 try:
@@ -131,29 +157,32 @@ async def getimage(client, event):
                     except Exception:
                         pass
                 return
-            else:
-                # Static sticker (likely .webp)
-                file_obj = await client.download_media(event.sticker, in_memory=True)
-                try:
-                    file_obj.seek(0)
-                except Exception:
-                    pass
-                img = Image.open(file_obj).convert("RGB")
-                nsfw = await classify_image_async(img)
-                if nsfw:
-                    if file_id:
-                        await add_nsfw(file_id)
-                    if unique_id:
-                        mark_nsfw_cached(unique_id)
-                        await add_nsfw_unique(unique_id)
-                    await send_msg(event)
-                else:
-                    if file_id:
-                        await remove_nsfw(file_id)
-                    if unique_id:
-                        mark_safe_cached(unique_id)
-                        await remove_nsfw_unique(unique_id)
+            if mime == "application/x-tgsticker" or getattr(event.sticker, "is_animated", False):
+                # TGS (Lottie) stickers are vector animations; skip (unsupported)
                 return
+
+            # Static sticker (likely .webp)
+            file_obj = await client.download_media(event.sticker, in_memory=True)
+            try:
+                file_obj.seek(0)
+            except Exception:
+                pass
+            img = Image.open(file_obj).convert("RGB")
+            nsfw = await classify_image_async(img)
+            if nsfw:
+                if file_id:
+                    await add_nsfw(file_id)
+                if unique_id:
+                    mark_nsfw_cached(unique_id)
+                    await add_nsfw_unique(unique_id)
+                await send_msg(event)
+            else:
+                if file_id:
+                    await remove_nsfw(file_id)
+                if unique_id:
+                    mark_safe_cached(unique_id)
+                    await remove_nsfw_unique(unique_id)
+            return
 
         elif event.animation:
             # GIFs are downloaded as MP4
@@ -190,10 +219,9 @@ async def start(_, event):
     buttons = [[InlineKeyboardButton("Support Chat", url="t.me/VivaanSupport"), InlineKeyboardButton("News Channel", url="t.me/VivaanNetwork")]]
     reply_markup = InlineKeyboardMarkup(buttons)
     await event.reply_text("Hello, I am a bot that detects NSFW (Not Safe for Work) images and stickers. Send me an image to check if it is NSFW or not. In groups, just make me an admin with delete message rights and I will delete all NSFW images sent by anyone.", reply_markup=reply_markup)
-    if event.from_user.username:
-        await add_user(event.from_user.id, event.from_user.username)
-    else:
-        await add_user(event.from_user.id, "None")
+    if event.from_user and event.from_user.id:
+        username = getattr(event.from_user, "username", None) or "None"
+        await add_user(event.from_user.id, username)
 
 async def send_msg(event):
     if event.chat.type in (ChatType.SUPERGROUP, ChatType.GROUP):
