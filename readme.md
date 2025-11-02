@@ -20,8 +20,8 @@ Try it on Telegram: [@NsfwDetectorRobot](https://t.me/NsfwDetectorRobot)
 ## Tech stack
 
 - Python 3.11
-- Pyrogram 2.x, tgcrypto/cryptg
-- Transformers, Torch, OpenCV, Pillow
+- Pyrogram 2.x, tgcrypto
+- Transformers, Torch, OpenCV (headless), Pillow
 - Motor (MongoDB), uvloop
 
 ## Requirements

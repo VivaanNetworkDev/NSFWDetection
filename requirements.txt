@@ -2,8 +2,7 @@ transformers
 pillow
 pyrogram
 torch
-opencv-python
+opencv-python-headless
 uvloop
-cryptg
 tgcrypto
 motor
