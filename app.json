@@ -1,0 +1,38 @@
+{
+  "name": "NSFW Detection Telegram Bot",
+  "description": "Advanced NSFW Detection Bot for Telegram using AI-powered image analysis with 24/7 uptime support",
+  "keywords": ["telegram", "bot", "nsfw", "detection", "python", "ai", "moderation", "image-recognition"],
+  "website": "https://github.com/VivaanNetworkDev/NSFWDetection",
+  "repository": "https://github.com/VivaanNetworkDev/NSFWDetection",
+  "logo": "https://telegram.org/img/t_logo.png",
+  "stack": "heroku-22",
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "env": {
+    "BOT_TOKEN": {
+      "description": "Your Telegram Bot Token from @BotFather",
+      "required": true
+    },
+    "API_ID": {
+      "description": "Your Telegram API ID from https://my.telegram.org/auth",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Your Telegram API Hash from https://my.telegram.org/auth",
+      "required": true
+    },
+    "MONGO_URI": {
+      "description": "Your MongoDB connection string (MongoDB Atlas free tier recommended)",
+      "required": true
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
