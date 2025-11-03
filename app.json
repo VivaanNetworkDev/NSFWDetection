@@ -7,6 +7,10 @@
   "logo": "https://telegram.org/img/t_logo.png",
   "stack": "heroku-22",
   "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    },
     "worker": {
       "quantity": 1,
       "size": "basic"
