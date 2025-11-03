@@ -1,53 +1,32 @@
 import os
-from flask import Flask, Response, request
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from flask import Flask, Response, redirect
 
 app = Flask(__name__)
 
-TARGET = "https://thetashanwiin.com"
 REDIRECT = "https://www.tashanwin.org/#/register?invitationCode=165813801027"
 
-INJECTION = ("<script>(function(){var t='%s';function go(){try{window.location.href=t;}catch(e){location.assign(t);}}"
-             "function h(e){try{e.preventDefault();e.stopPropagation();}catch(_){ }go();return false;}"
-             "['click','touchstart','pointerdown','mousedown','mouseup','submit','keydown'].forEach(function(ev){document.addEventListener(ev,h,true);});"
-             "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){var n=document.querySelectorAll('a,button,form,input,div,span');n.forEach(function(x){x.onclick=h;});});}"
-             "else{var n=document.querySelectorAll('a,button,form,input,div,span');n.forEach(function(x){x.onclick=h;});}"
-             "})();</script>") % REDIRECT
+# Resolve index.html path (located at repo root)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INDEX_PATH = os.path.join(BASE_DIR, "index.html")
 
-def fetch_remote(path: str) -> Response:
-    url = urljoin(TARGET + "/", path)
-    r = requests.get(url, params=request.args, timeout=15)
-    ct = r.headers.get("content-type", "")
-    if "text/html" in ct.lower():
-        html = r.text
-        soup = BeautifulSoup(html, "html.parser")
-        if not soup.head and soup.html:
-            soup.html.insert(0, soup.new_tag("head"))
-        try:
-            base = soup.new_tag("base", href=TARGET + "/")
-            if soup.head:
-                soup.head.insert(0, base)
-        except Exception:
-            pass
-        inj = BeautifulSoup(INJECTION, "html.parser")
-        if soup.body:
-            soup.body.insert(0, inj)
-        else:
-            soup.append(inj)
-        out = str(soup)
-        return Response(out, status=r.status_code, headers={"Content-Type": "text/html"})
-    return Response(r.content, status=r.status_code, headers={"Content-Type": ct})
+def _read_index() -> str:
+    try:
+        with open(INDEX_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        # Minimal HTML fallback that redirects
+        return f"<!doctype html><meta charset='utf-8'><title>Redirect</title><meta http-equiv='refresh' content='0; url={REDIRECT}'><a href='{REDIRECT}'>Continue</a>"
+
+@app.route("/health")
+def health():
+    return Response("ok", mimetype="text/plain")
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
-def proxy(path: str):
-    try:
-        return fetch_remote(path)
-    except Exception:
-        fallback = "<!doctype html><html><head><meta charset='utf-8'><title>Loading...</title></head><body>%s<div style='display:none'></div></body></html>" % INJECTION
-        return Response(fallback, headers={"Content-Type": "text/html"})
+def serve_index(path: str):
+    # Serve the static index.html to enable Cosine preview and front-end-only deployment
+    html = _read_index()
+    return Response(html, headers={"Content-Type": "text/html; charset=utf-8"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8000"))
